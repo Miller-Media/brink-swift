@@ -88,7 +88,7 @@ class BrinkAPI {
     
     private var urlSession : URLSession? = nil
     
-    private var accessToken : String? = nil
+    var accessToken : String? = nil
     var userId : String? = nil
     
     //MARK: - Public
