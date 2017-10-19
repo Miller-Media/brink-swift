@@ -13,20 +13,34 @@ Copy the BrinkAPI.swift file to your project.
 let brinkAPI = BrinkAPI()
 ```
 
-Optionally you can set an access token to the instance:
+### If an access token is available, the BrinkAPI object can be instantiated with it:
 
 ```swift
-brinkAPI.accessToken = "access_token_string"
+let brinkAPI = BrinkAPI(jwtToken: "tokenString")
 ```
-
-Note that the responses are not yet handled by the BrinkAPI instance. They need to be handled in the completion handlers of each request.
-
 
 ### Create new user
 
 ```swift
-brinkAPI.createUser(firstName: "firstName", lastName: "lastName", email: "example@example.com", username: "username", password: "password") { (response, error) in
-    //Parse response json dictionary object
+brinkAPI.createUser(firstName: "fName", lastName: "lName", email: "email", username: "username", password: "password") { (token, id, error) in
+    if let err = error {
+        //Handle error
+        } else if let jwtToken = token, let userId = id {
+            //Handle response
+        }
+    }
+```
+This API call does not require an access token.
+
+### Login
+
+```swift
+brinkAPI.login(username: "probi", password: "password") { (user, error) in
+    if let err = error {
+        //Handle error
+    } else if let brinkUser = user {
+        //Handle user
+    }
 }
 ```
 This API call does not require an access token.
@@ -34,17 +48,12 @@ This API call does not require an access token.
 ### Get an existing user
 
 ```swift
-brinkAPI.getUser(userId: "user_id") { (response, error) in
-    //Parse response json dictionary object
-}
-```
-This API call does not require an access token.
-
-### Login
-
-```swift
-brinkAPI.login(username: "username", password: "password") { (response, error) in
-    //Parse response json dictionary object
+brinkAPI.getUser(userId: userId) { (user, error) in
+    if let err = error {
+        //Handle error
+    } else {
+        //Use user object
+    }
 }
 ```
 This API call requires an access token to be set on the instance.
@@ -52,45 +61,71 @@ This API call requires an access token to be set on the instance.
 ### Get all flights
 
 ```swift
-brinkAPI.getAllFlights { (response, error) in
-    //Parse response json dictionary object
-}
+brinkAPI.getAllFlightIds(completion: { (flightIds, error) in
+    if let err = error {
+        //Handle error
+    } else {
+        //Handle returned flight ids
+    }
+})
 ```
 This API call requires an access token to be set on the instance.
 
 ### Get a specific flight
 
 ```swift
-brinkAPI.getFlight(flightId: "flight_id") { (response, error) in
-    //Parse response json dictionary object
-}
+brinkAPI.getFlight(flightId: flightId, completion: { (flight, error) in
+    if let err = error {
+        //Handle error
+    } else if let brinkFlight = flight {
+        //Handle returned flight
+    }
+})
 ```
 This API call requires an access token to be set on the instance.
 
 ### Create a flight
 
 ```swift
-brinkAPI.createFlight { (response, error) in
-    //Parse response json dictionary object
-}
+brinkAPI.createFlight(completion: { (id, error) in
+    if let err = error {
+        //Handle error
+    } else if let flightId = id {
+        //Handle flight id
+    }
+})
 ```
 This API call requires an access token to be set on the instance.
 
 ### Get flight data
 
 ```swift
-brinkAPI.getFlightData(flightId: "flight_id", page: 0, perPage: 20) { (response, error) in
-    //Parse response json dictionary object
-}
+brinkAPI.getFlightData(flightId: flightId, page: 1, perPage: 20, completion: { (flightDataPoints, error) in
+    if let err = error {
+        //Handle error
+    } else {
+        //Handle array of BrinkFlightDataPoint
+    }
+})
 ```
 This API call requires an access token to be set on the instance.
 
 ### Create flight data
 
 ```swift
-brinkAPI.createFlightData(flightId: "flight_id", attributes: ["attr1" : "attr1_value", "attr2" : "attr2_value"]) { (response, error) in
-    //Parse response json dictionary object
-}
+let flightDataPoint = BrinkFlightDataPoint()
+flightDataPoint.timestamp = 1503873412.0
+flightDataPoint.altitude = 1234.0
+flightDataPoint.pressure = 123123.0
+flightDataPoint.coordinateX = 23.234
+flightDataPoint.coordinateY = 60.234
+flightDataPoint.temperature = 31.0
+
+brinkAPI.createFlightDataPoint(flightId: flightId, dataPoint: flightDataPoint, completion: { (error) in
+    if let err = error {
+        //Handle error
+    }
+})
 ```
 This API call requires an access token to be set on the instance.
 

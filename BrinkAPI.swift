@@ -91,19 +91,36 @@ class BrinkUser {
 
 class BrinkFlight {
     var id : Int = 0
-    var time : Int? = nil
-    var duration : Int? = nil
-    var startCoordinateX : Double? = nil
-    var startCoordinateY : Double? = nil
-    var endCoordinateX : Double? = nil
-    var endCoordinateY : Double? = nil
-    var maxAltitude : Int? = nil
-    var minTemperature : Int? = nil
-    var maxTemperature : Int? = nil
+    var time : Double = 0
+    var duration : Double = 0
+    var startCoordinateX : Double = 0.0
+    var startCoordinateY : Double = 0.0
+    var endCoordinateX : Double = 0.0
+    var endCoordinateY : Double = 0.0
+    var maxAltitude : Double = 0
+    var minTemperature : Double = 0
+    var maxTemperature : Double = 0
 }
 
 class BrinkFlightDataPoint {
+    var timestamp : Double = 0.0
+    var coordinateX : Double = 0.0
+    var coordinateY : Double = 0.0
+    var pressure : Double = 0.0
+    var temperature : Double = 0.0
+    var altitude : Double = 0.0
     
+    func toDictionary() -> [String : Any] {
+        var resultDict = [String : Any]()
+        resultDict["timestamp"] = self.timestamp
+        resultDict["altitude"] = self.altitude
+        resultDict["pressure"] = self.pressure
+        resultDict["coordinateX"] = self.coordinateX
+        resultDict["coordinateY"] = self.coordinateX
+        resultDict["temperature"] = self.temperature
+        
+        return resultDict
+    }
 }
 
 class BrinkAPI {
@@ -225,7 +242,38 @@ class BrinkAPI {
     
     func getFlight(flightId : Int, completion : ((_ flight : BrinkFlight?, _ error : Error?) -> ())?) {
         self.brinkAPICall(method: BrinkAPIMethod.getFlight, dataJsonObject: nil, urlParameters: [String(flightId)]) { (response, error) in
+            guard let responseDict = response as? [String : Any],
+                let time = responseDict["flightTime"] as? Double,
+                let duration = responseDict["duration"] as? Double,
+                let startCoordinateX = responseDict["startCoordinateX"] as? Double,
+                let startCoordinateY = responseDict["startCoordinateY"] as? Double,
+                let endCoordinateX = responseDict["endCoordinateX"] as? Double,
+                let endCoordinateY = responseDict["endCoordinateY"] as? Double,
+                let maxAltitude = responseDict["maxAltitude"] as? Double,
+                let minTemperature = responseDict["minTemperature"] as? Double,
+                let maxTemperature = responseDict["maxTemperature"] as? Double
+                else {
+                    if let err = error {
+                        completion?(nil, err)
+                    } else {
+                        let error = NSError(domain: self.errorDomain, code: self.errorCode, userInfo: [NSLocalizedDescriptionKey : "Some needed fields not present in the response"])
+                        completion?(nil, error)
+                    }
+                    return
+            }
             
+            let flight = BrinkFlight()
+            flight.time = time
+            flight.duration = duration
+            flight.startCoordinateX = startCoordinateX
+            flight.endCoordinateX = endCoordinateX
+            flight.startCoordinateY = startCoordinateY
+            flight.endCoordinateY = endCoordinateY
+            flight.maxAltitude = maxAltitude
+            flight.minTemperature = minTemperature
+            flight.maxTemperature = maxTemperature
+            
+            completion?(flight, nil)
         }
     }
     
@@ -247,14 +295,51 @@ class BrinkAPI {
         }
     }
     
-    func getFlightData(flightId : String, page : Int, perPage : Int, completion : APICompletionClosure?) {
-        self.brinkAPICall(method: BrinkAPIMethod.getFlightData, dataJsonObject: ["page" : page, "perPage" : perPage], urlParameters: [flightId], completion: completion)
+    func getFlightData(flightId : Int, page : Int, perPage : Int, completion : ((_ flightDataPoints : [BrinkFlightDataPoint], _ error : Error?) -> ())?) {
+        self.brinkAPICall(method: BrinkAPIMethod.getFlightData, dataJsonObject: ["page" : page, "perPage" : perPage], urlParameters: [String(flightId)]) { (response, error) in
+            
+            guard let responseDict = response as? [String : Any], let dataDict = responseDict["data"] as? [[String : Any]] else {
+                if let err = error {
+                    completion?([], err)
+                } else {
+                    let error = NSError(domain: self.errorDomain, code: self.errorCode, userInfo: [NSLocalizedDescriptionKey : "Response is not in the correct format"])
+                    completion?([], error)
+                }
+                return
+            }
+            
+            var flightDataPoints = [BrinkFlightDataPoint]()
+            
+            for aFlightPointDict in dataDict {
+                guard let timestamp = aFlightPointDict["timestamp"] as? Double,
+                    let coordinateX = aFlightPointDict["coordinateX"] as? Double,
+                    let coordinateY = aFlightPointDict["coordinateY"] as? Double,
+                    let pressure = aFlightPointDict["pressure"] as? Double,
+                    let temperature = aFlightPointDict["temperature"] as? Double,
+                    let altitude = aFlightPointDict["altitude"] as? Double else {
+                        continue
+                }
+                
+                let dataPoint = BrinkFlightDataPoint()
+                dataPoint.timestamp = timestamp
+                dataPoint.coordinateX = coordinateX
+                dataPoint.coordinateY = coordinateY
+                dataPoint.pressure = pressure
+                dataPoint.temperature = temperature
+                dataPoint.altitude = altitude
+                
+                flightDataPoints.append(dataPoint)
+            }
+            
+            completion?(flightDataPoints, nil)
+        }
     }
     
-    func createFlightData(flightId : String, attributes : [String : Any], completion : APICompletionClosure?) {
-        self.brinkAPICall(method: BrinkAPIMethod.createFlightDataRecord, dataJsonObject: attributes, urlParameters: [flightId], completion: completion)
+    func createFlightDataPoint(flightId : Int, dataPoint : BrinkFlightDataPoint, completion : ((_ error : Error?) -> ())?) {
+        self.brinkAPICall(method: BrinkAPIMethod.createFlightDataRecord, dataJsonObject: dataPoint.toDictionary(), urlParameters: [String(flightId)]) { (response, error) in
+            completion?(error)
+        }
     }
-    
     
     //MARK: - Private
     
@@ -317,7 +402,7 @@ class BrinkAPI {
             }
             
             //Logs
-            print("API call: \n\(finalUrlString)\nMethod: \(httpMethod.rawValue)\nHeaders: \(String(describing: urlRequest.allHTTPHeaderFields))\nBody: \(String(describing: postJsonString))\n\n")
+            print("API call: \n\(finalUrlString)\nMethod: \(httpMethod.rawValue)\nHeaders: \(String(describing: urlRequest.allHTTPHeaderFields))\nBody: \(postJsonString ?? "nil")\n\n")
             
             //Create the data task
             let task = urlSession?.dataTask(with: urlRequest, completionHandler: { (data, urlResponse, error) in
@@ -349,4 +434,5 @@ class BrinkAPI {
         }
     }
 }
+
 
