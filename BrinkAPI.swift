@@ -1,6 +1,6 @@
 //
 //  BrinkAPI.swift
-//  
+//
 //
 //  Created by Peter Robert on 21/09/2017.
 //
@@ -81,6 +81,31 @@ enum BrinkAPIMethod {
     }
 }
 
+class BrinkUser {
+    var email : String = ""
+    var firstName : String = ""
+    var lastName : String = ""
+    var userName : String = ""
+    var userId : Int = 0
+}
+
+class BrinkFlight {
+    var id : Int = 0
+    var time : Int? = nil
+    var duration : Int? = nil
+    var startCoordinateX : Double? = nil
+    var startCoordinateY : Double? = nil
+    var endCoordinateX : Double? = nil
+    var endCoordinateY : Double? = nil
+    var maxAltitude : Int? = nil
+    var minTemperature : Int? = nil
+    var maxTemperature : Int? = nil
+}
+
+class BrinkFlightDataPoint {
+    
+}
+
 class BrinkAPI {
     
     private let errorDomain = "com.brinkapierrordomain"
@@ -89,34 +114,137 @@ class BrinkAPI {
     private var urlSession : URLSession? = nil
     
     var accessToken : String? = nil
-    var userId : String? = nil
+    
+    //MARK: - Lifecycle
+    
+    init(jwtToken : String? = nil) {
+        self.accessToken = jwtToken
+    }
     
     //MARK: - Public
     
-    func createUser(firstName : String, lastName : String, email : String, username : String, password : String, completion : APICompletionClosure?) {
-        let parameters = ["first_name" : firstName, "last_name" : lastName, "email" : email, "username" : username, "passwrod" : password]
-        self.brinkAPICall(method: BrinkAPIMethod.createUser, dataJsonObject: parameters, urlParameters: [], completion: completion)
+    func createUser(firstName : String, lastName : String, email : String, username : String, password : String, completion : ((_ jwtToken : String?, _ userId : Int?, _ error : Error?) -> ())?) {
+        let parameters = ["first_name" : firstName, "last_name" : lastName, "email" : email, "username" : username, "password" : password]
+        self.brinkAPICall(method: BrinkAPIMethod.createUser, dataJsonObject: parameters, urlParameters: []) { (response, error) in
+            
+            guard let responseDict = response as? [String : Any], let token = responseDict["jwt_token"] as? String, let userId = responseDict["user_id"] as? Int else {
+                if let err = error {
+                    completion?(nil, nil, err)
+                } else {
+                    let error = NSError(domain: self.errorDomain, code: self.errorCode, userInfo: [NSLocalizedDescriptionKey : "Empty response"])
+                    completion?(nil, nil, error)
+                }
+                return
+            }
+            
+            self.accessToken = token
+            
+            completion?(token, userId, nil)
+        }
     }
     
-    func getUser(userId : String, completion : APICompletionClosure?) {
-        self.brinkAPICall(method: BrinkAPIMethod.getUser, dataJsonObject: nil, urlParameters: [userId], completion: completion)
+    func getUser(userId : Int, completion : ((_ user : BrinkUser?, _ error : Error?) -> ())?) {
+        self.brinkAPICall(method: BrinkAPIMethod.getUser, dataJsonObject: nil, urlParameters: [String(userId)]) { (response, error) in
+            guard let responseDict = response as? [String : Any],
+                let email = responseDict["email"] as? String,
+                let username = responseDict["username"] as? String,
+                let firstName = responseDict["first_name"] as? String,
+                let lastName = responseDict["last_name"] as? String,
+                let userId = responseDict["id"] as? Int
+                else {
+                    if let err = error {
+                        completion?(nil, err)
+                    } else {
+                        let error = NSError(domain: self.errorDomain, code: self.errorCode, userInfo: [NSLocalizedDescriptionKey : "Empty response"])
+                        completion?(nil, error)
+                    }
+                    return
+            }
+            
+            let user = BrinkUser()
+            user.email = email
+            user.userName = username
+            user.firstName = firstName
+            user.lastName = lastName
+            user.userId = userId
+            
+            completion?(user, nil)
+        }
     }
     
-    func login(username : String, password : String, completion : APICompletionClosure?) {
+    func login(username : String, password : String, completion : ((_ user : BrinkUser?, _ error : Error?) -> ())?) {
         let parameters = ["username" : username, "password" : password]
-        self.brinkAPICall(method: BrinkAPIMethod.login, dataJsonObject: parameters, urlParameters: [], completion: completion)
+        self.brinkAPICall(method: BrinkAPIMethod.login, dataJsonObject: parameters, urlParameters: []) { (response, error) in
+            guard let responseDict = response as? [String : Any],
+                let email = responseDict["email"] as? String,
+                let username = responseDict["username"] as? String,
+                let firstName = responseDict["first_name"] as? String,
+                let lastName = responseDict["last_name"] as? String,
+                let userId = responseDict["id"] as? Int,
+                let jwtToken = responseDict["jwt_token"] as? String
+                else {
+                    if let err = error {
+                        completion?(nil, err)
+                    } else {
+                        let error = NSError(domain: self.errorDomain, code: self.errorCode, userInfo: [NSLocalizedDescriptionKey : "Empty response"])
+                        completion?(nil, error)
+                    }
+                    return
+            }
+            
+            self.accessToken = jwtToken
+            
+            let user = BrinkUser()
+            user.email = email
+            user.userName = username
+            user.firstName = firstName
+            user.lastName = lastName
+            user.userId = userId
+            
+            completion?(user, nil)
+        }
     }
     
-    func getAllFlights(completion : APICompletionClosure?) {
-        self.brinkAPICall(method: BrinkAPIMethod.getAllFlights, dataJsonObject: nil, urlParameters: [], completion: completion)
+    func getAllFlightIds(completion : ((_ flightIds : [Int], _ error : Error?) -> ())?) {
+        self.brinkAPICall(method: BrinkAPIMethod.getAllFlights, dataJsonObject: nil, urlParameters: []) { (response, error) in
+            guard let responseDict = response as? [String : Any],
+                let flightIds = responseDict["flights"] as? [Int]
+                else {
+                    if let err = error {
+                        completion?([], err)
+                    } else {
+                        let error = NSError(domain: self.errorDomain, code: self.errorCode, userInfo: [NSLocalizedDescriptionKey : "Empty response"])
+                        completion?([], error)
+                    }
+                    return
+            }
+            
+            completion?(flightIds, nil)
+        }
     }
     
-    func getFlight(flightId : String, completion : APICompletionClosure?) {
-        self.brinkAPICall(method: BrinkAPIMethod.getFlight, dataJsonObject: nil, urlParameters: [flightId], completion: completion)
+    func getFlight(flightId : Int, completion : ((_ flight : BrinkFlight?, _ error : Error?) -> ())?) {
+        self.brinkAPICall(method: BrinkAPIMethod.getFlight, dataJsonObject: nil, urlParameters: [String(flightId)]) { (response, error) in
+            
+        }
     }
     
-    func createFlight(completion : APICompletionClosure?) {
-        self.brinkAPICall(method: BrinkAPIMethod.createFlight, dataJsonObject: nil, urlParameters: [], completion: completion)
+    func createFlight(completion : ((_ flightId : Int?, _ error : Error?) -> ())?) {
+        self.brinkAPICall(method: BrinkAPIMethod.createFlight, dataJsonObject: nil, urlParameters: []) { (response, error) in
+            guard let responseDict = response as? [String : Any],
+                let flightId = responseDict["id"] as? Int
+                else {
+                    if let err = error {
+                        completion?(nil, err)
+                    } else {
+                        let error = NSError(domain: self.errorDomain, code: self.errorCode, userInfo: [NSLocalizedDescriptionKey : "Empty response"])
+                        completion?(nil, error)
+                    }
+                    return
+            }
+            
+            completion?(flightId, nil)
+        }
     }
     
     func getFlightData(flightId : String, page : Int, perPage : Int, completion : APICompletionClosure?) {
@@ -151,7 +279,13 @@ class BrinkAPI {
     
     private func jsonAPICall(urlString : String, httpMethod : HttpMethod, httpHeaders : [String : String]?, dataJsonObject : Any?, urlParameters : [String], completion : APICompletionClosure?) {
         
-        if let url = URL(string: urlString) {
+        var finalUrlString = urlString
+        
+        if urlParameters.count > 0 {
+            finalUrlString = String(format: urlString, arguments: urlParameters)
+        }
+        
+        if let url = URL(string: finalUrlString) {
             
             //Create the session configuration and the session if needed
             if self.urlSession == nil {
@@ -163,8 +297,9 @@ class BrinkAPI {
             //Build up the url request
             var urlRequest = URLRequest(url: url, cachePolicy: URLRequest.CachePolicy.reloadIgnoringCacheData, timeoutInterval: 5.0)
             urlRequest.httpMethod = httpMethod.rawValue
-            urlRequest.allHTTPHeaderFields = [String:String]()
-            urlRequest.allHTTPHeaderFields?["Content-Type"] = "application/json"
+            urlRequest.allHTTPHeaderFields = httpHeaders
+            //            urlRequest.allHTTPHeaderFields = [String:String]()
+            //            urlRequest.allHTTPHeaderFields?["Content-Type"] = "application/json"
             
             var postJsonString : String? = nil
             
@@ -182,7 +317,7 @@ class BrinkAPI {
             }
             
             //Logs
-            print("API call: \n\(urlString)\nMethod: \(httpMethod.rawValue)\nHeaders: \(urlRequest.allHTTPHeaderFields)\nBody: \(postJsonString)\n\n")
+            print("API call: \n\(finalUrlString)\nMethod: \(httpMethod.rawValue)\nHeaders: \(String(describing: urlRequest.allHTTPHeaderFields))\nBody: \(String(describing: postJsonString))\n\n")
             
             //Create the data task
             let task = urlSession?.dataTask(with: urlRequest, completionHandler: { (data, urlResponse, error) in
