@@ -13,7 +13,7 @@ Copy the BrinkAPI.swift file to your project.
 let brinkAPI = BrinkAPI()
 ```
 
-### If an access token is available, the BrinkAPI object can be instantiated with it:
+If an access token is available, the BrinkAPI object can be instantiated with it:
 
 ```swift
 let brinkAPI = BrinkAPI(jwtToken: "tokenString")
